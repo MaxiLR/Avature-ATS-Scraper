@@ -46,4 +46,4 @@ class SitemapParser:
                 if len(path_parts) > 1 and path_parts[1]:
                     urls.append(href)
 
-        return urls
+        return list(set(urls))
