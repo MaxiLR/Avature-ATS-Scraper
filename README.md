@@ -138,3 +138,15 @@ RSS Feed structure:
 - ✓ Timeout handling for slow-responding sites
 - ✓ Thread-safe parallel scraping with proper session management
 - ✓ Graceful handling of malformed HTML
+- ✓ URL deduplication from sitemaps
+
+**Parsing Strategy**:
+
+The scraper uses a hybrid parsing approach to handle inconsistencies across Avature domains:
+
+- **Global parser**: Handles common Avature HTML patterns (title, description, labeled metadata fields)
+- **Site-specific fallbacks**: Custom extraction logic for domains with unique HTML structures
+  - Example: UCLA Health uses `<strong>Work Location:</strong>` instead of labeled fields
+  - Future: Add parsers for domains with unique patterns as they're discovered
+
+For production use at scale, each domain displaying JobDetails with significant structural differences would benefit from dedicated parsing logic, complementing the global approach. This ensures maximum data extraction while maintaining code maintainability.
