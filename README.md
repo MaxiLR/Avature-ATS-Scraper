@@ -2,6 +2,8 @@
 
 Scraper for extracting job postings from Avature-hosted career sites.
 
+**Time Investment**: ~8 hours
+
 ## Setup
 
 1. Install Poetry if needed.
@@ -87,6 +89,7 @@ The most effective method for discovering new Avature career sites would be:
    - Confirms the site is an active job portal with listings
 
 **Why This Approach?**
+
 - Targets real, active career sites (not just DNS records)
 - SearchJobs endpoint is specific to Avature ATS job portals
 - Much more accurate than subdomain enumeration (e.g., subfinder returns 1985+ subdomains, most invalid)
@@ -94,11 +97,44 @@ The most effective method for discovering new Avature career sites would be:
 
 **Current Workaround**:
 Manually discover sites by:
+
 1. Searching Google for `site:*.avature.net inurl:SearchJobs`
 2. Adding discovered URLs to `input/sites.txt`
 
 ### Scraping
+
 1. Reads Avature site URLs from input file
 2. Fetches `/sitemap.xml` from each site (single request to get all job URLs)
 3. Fetches each job detail page for full description and metadata
 4. Writes jobs to JSONL output file
+
+## Data Quality & Edge Cases
+
+**Posted Date Solution**:
+While not all individual job pages include posting dates, Avature provides an **RSS feed API endpoint** that includes `pubDate` for each job:
+
+Example: `https://uclahealth.avature.net/careers/SearchJobs/feed/?jobRecordsPerPage=100`
+
+RSS Feed structure:
+
+```xml
+<item>
+    <title><![CDATA[Attending Physician- Staff Anesthesiologist, Westwood]]></title>
+    <description><![CDATA[ - 26192]]></description>
+    <guid isPermaLink="true">https://uclahealth.avature.net/careers/JobDetail/...</guid>
+    <link>https://uclahealth.avature.net/careers/JobDetail/...</link>
+    <pubDate>Tue, 25 Jul 2023 00:00:00 +0000</pubDate>
+</item>
+```
+
+**Future Enhancement**: Parse RSS feed to enrich job data with posting dates.
+
+**Handled Edge Cases**:
+
+- ✓ Retry logic for failed requests (up to 3 retries with exponential backoff)
+- ✓ Error page detection and filtering (skips jobs with "Error" in title and empty description)
+- ✓ Site-specific HTML variations (Bloomberg labeled fields vs UCLA "Work Location:" format)
+- ✓ Proper HTML entity decoding in job descriptions
+- ✓ Timeout handling for slow-responding sites
+- ✓ Thread-safe parallel scraping with proper session management
+- ✓ Graceful handling of malformed HTML

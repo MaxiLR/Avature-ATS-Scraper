@@ -13,14 +13,20 @@ class JobParser:
 
     def parse(
         self, html: str, url: str, posted_at: str | None, source_site: str
-    ) -> Job:
-        """Parse job detail page HTML and extract job information."""
+    ) -> Job | None:
+        """Parse job detail page HTML and extract job information. Returns None for error pages."""
         soup = BeautifulSoup(html, "lxml")
 
         title = self._extract_title(soup)
         metadata = self._extract_metadata(soup)
         location = metadata.pop("location", None)
         description = self._extract_description(soup)
+
+        if "error" in title.lower() and not description.strip():
+            return None
+
+        if not location:
+            location = self._extract_location_fallback(soup)
 
         return Job(
             title=title,
@@ -93,3 +99,13 @@ class JobParser:
                 metadata[key] = value_el.get_text(strip=True)
 
         return metadata
+
+    def _extract_location_fallback(self, soup: BeautifulSoup) -> str | None:
+        """Extract location from UCLA Health-style 'Work Location:' format."""
+        for strong in soup.find_all("strong"):
+            text = strong.get_text(strip=True)
+            if text.startswith("Work Location:"):
+                location = text.replace("Work Location:", "").strip()
+                return location
+
+        return None

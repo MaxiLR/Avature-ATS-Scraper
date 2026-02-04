@@ -8,7 +8,11 @@ class SitemapParser:
 
     def get_job_urls(self, base_url: str) -> list[str]:
         """Fetch all job URLs from sitemap.xml in a single request."""
-        sitemap_url = f"{base_url}/sitemap.xml"
+        final_url = self._follow_redirects(base_url)
+        if not final_url:
+            return []
+
+        sitemap_url = f"{final_url}/sitemap.xml"
 
         try:
             response = self.session.get(sitemap_url, timeout=30)
@@ -19,12 +23,23 @@ class SitemapParser:
 
         return self._parse_sitemap(response.text)
 
+    def _follow_redirects(self, url: str) -> str | None:
+        """Follow redirects and return the final URL without trailing slash."""
+        try:
+            response = self.session.get(url, timeout=30, allow_redirects=True)
+            response.raise_for_status()
+            final_url = response.url.rstrip("/")
+            return final_url
+        except requests.RequestException as e:
+            print(f"  URL validation error for {url}: {e}")
+            return None
+
     def _parse_sitemap(self, html: str) -> list[str]:
         """Parse sitemap and extract JobDetail URLs."""
-        soup = BeautifulSoup(html, "lxml")
+        soup = BeautifulSoup(html, "lxml-xml")
 
         urls = []
-        for link in soup.select("[hreflang][href*='/JobDetail/']"):
+        for link in soup.find_all("link", attrs={"hreflang": "x-default"}):
             href = link.get("href")
             if href and "/JobDetail/" in href:
                 path_parts = href.split("/JobDetail/")
