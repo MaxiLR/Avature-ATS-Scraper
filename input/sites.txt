@@ -1,5 +1,4 @@
 # Avature-hosted career site URLs
-# Add one URL per line, comments start with #
 
 https://bloomberg.avature.net/careers
 https://uclahealth.avature.net/careers

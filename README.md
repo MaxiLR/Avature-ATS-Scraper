@@ -66,6 +66,38 @@ Jobs are saved as JSON Lines (`.jsonl`), one job per line:
 
 ## How It Works
 
+### Automated Discovery (Not Implemented)
+
+**Note**: Automated source discovery is not currently implemented due to time constraints and the need for CAPTCHA solving capabilities.
+
+**Recommended Approach for Future Implementation**:
+The most effective method for discovering new Avature career sites would be:
+
+1. **Google Search**: Query `site:*.avature.net inurl:SearchJobs`
+   - This targets active job portals with the SearchJobs endpoint
+   - Avoids false positives from generic subdomain enumeration
+
+2. **URL Pattern Extraction**:
+   - Extract portal URLs from SearchJobs endpoints
+   - Example: `https://baufest.avature.net/jobs/SearchJobs/?jobOffset=20` → `https://baufest.avature.net/jobs`
+   - Convert to sitemap: `https://baufest.avature.net/jobs/sitemap.xml`
+
+3. **Validation**:
+   - Verify sitemap exists and contains `/JobDetail/` links
+   - Confirms the site is an active job portal with listings
+
+**Why This Approach?**
+- Targets real, active career sites (not just DNS records)
+- SearchJobs endpoint is specific to Avature ATS job portals
+- Much more accurate than subdomain enumeration (e.g., subfinder returns 1985+ subdomains, most invalid)
+- Alternatives like subfinder or crt.sh are not that reliable for this task given the identified pattern
+
+**Current Workaround**:
+Manually discover sites by:
+1. Searching Google for `site:*.avature.net inurl:SearchJobs`
+2. Adding discovered URLs to `input/sites.txt`
+
+### Scraping
 1. Reads Avature site URLs from input file
 2. Fetches `/sitemap.xml` from each site (single request to get all job URLs)
 3. Fetches each job detail page for full description and metadata

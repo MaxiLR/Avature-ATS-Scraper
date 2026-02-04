@@ -52,6 +52,7 @@ def main():
     )
     args = parser.parse_args()
 
+    # Normal scraping modes
     if not args.input.exists():
         print(f"Error: Input file not found: {args.input}")
         print("Create the file with Avature site URLs, one per line.")
