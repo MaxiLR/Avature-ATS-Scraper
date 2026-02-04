@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "avature-scraper"
+version = "0.1.0"
+description = "Scraper for Avature-hosted career sites"
+authors = ["Your Name"]
+readme = "README.md"
+packages = [{include = "avature_scraper", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = "^2.32"
+beautifulsoup4 = "^4.12"
+lxml = "^5.0"
+
+[tool.poetry.scripts]
+avature-scraper = "avature_scraper.main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
