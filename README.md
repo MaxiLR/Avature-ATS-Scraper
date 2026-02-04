@@ -37,6 +37,12 @@ poetry run python -m avature_scraper -i my_sites.txt -o my_output.jsonl
 
 # Adjust delay between requests (default: 0.5s)
 poetry run python -m avature_scraper --delay 1.0
+
+# Parallel workers for faster scraping (default: 1)
+poetry run python -m avature_scraper --workers 8
+
+# Discover job counts without scraping
+poetry run python -m avature_scraper --discover-only
 ```
 
 ## Output Format

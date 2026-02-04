@@ -39,6 +39,17 @@ def main():
         default=0.5,
         help="Delay between requests in seconds (default: 0.5)",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of parallel workers for fetching jobs (default: 1)",
+    )
+    parser.add_argument(
+        "--discover-only",
+        action="store_true",
+        help="Only discover and count job URLs without scraping",
+    )
     args = parser.parse_args()
 
     if not args.input.exists():
@@ -51,10 +62,16 @@ def main():
         print("Error: No URLs found in input file")
         return 1
 
-    print(f"Loaded {len(urls)} site(s) to scrape")
-    scraper = AvatureScraper(delay=args.delay)
-    total = scraper.scrape_all(urls, args.output)
-    print(f"Done! Output written to: {args.output}")
+    print(f"Loaded {len(urls)} site(s)")
+    scraper = AvatureScraper(delay=args.delay, workers=args.workers)
+
+    if args.discover_only:
+        print("\nDiscovering job URLs...")
+        scraper.discover_all(urls)
+    else:
+        scraper.scrape_all(urls, args.output)
+        print(f"Done! Output written to: {args.output}")
+
     return 0
 
 
