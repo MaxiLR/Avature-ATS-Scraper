@@ -2,15 +2,23 @@
 
 Scraper for extracting job postings from Avature-hosted career sites.
 
-**Time Investment**: ~8 hours
+**Time Investment**: ~12 hours
 
-## Setup
+## Prerequisites
 
-1. Install Poetry if needed.
-2. Install dependencies:
+- **Python 3.11+**
+- **Poetry** for dependency management
+- **Playwright** (optional, for automated source discovery)
 
 ```bash
+# Install Poetry (if not installed)
+curl -sSL https://install.python-poetry.org | python3 -
+
+# Install dependencies
 poetry install
+
+# Install Playwright browsers (only needed for --discover-sources)
+poetry run playwright install chromium
 ```
 
 ## Usage
@@ -26,6 +34,7 @@ poetry run python -m avature_scraper --discover-sources
 This uses Playwright to search Google for `site:*.avature.net inurl:SearchJobs`, extracts portal URLs, validates them against their sitemaps, and optionally appends them to your `input/sites.txt`.
 
 Options:
+
 - `--max-pages N` - Number of Google search pages to scan (default: 3)
 - `--max-results N` - Maximum sources to discover (default: 50)
 
@@ -51,11 +60,8 @@ poetry run python -m avature_scraper
 # Custom input/output files
 poetry run python -m avature_scraper -i my_sites.txt -o my_output.jsonl
 
-# Adjust delay between requests (default: 0.5s)
-poetry run python -m avature_scraper --delay 1.0
-
-# Parallel workers for faster scraping (default: 1)
-poetry run python -m avature_scraper --workers 8
+# Adjust delay between requests (default: 1.5s)
+poetry run python -m avature_scraper --delay 2.0
 
 # Discover job counts without scraping
 poetry run python -m avature_scraper --discover-only
@@ -79,6 +85,121 @@ Jobs are saved as JSON Lines (`.jsonl`), one job per line:
   "source_site": "bloomberg.avature.net"
 }
 ```
+
+## Data Quality Summary
+
+> **Note**: Due to time constraints, not all edge cases are handled. The focus was on identifying global, repeatable patterns across Avature ATS sources and designing a dynamic discovery mechanism for new sources.
+
+### Current Dataset Statistics
+
+| Metric                 | Value       |
+| ---------------------- | ----------- |
+| Total jobs scraped     | 1,857       |
+| Unique apply URLs      | 100%        |
+| Avg description length | 8,308 chars |
+
+### Field Completeness
+
+| Field       | Coverage | Notes                                        |
+| ----------- | -------- | -------------------------------------------- |
+| title       | 93.8%    | Missing on some error/redirect pages         |
+| description | 68.1%    | Varies by site template                      |
+| location    | 34.8%    | Different HTML structures per domain         |
+| posted_at   | 0%       | Available via RSS feed (not yet implemented) |
+| metadata    | 34.9%    | Only on sites with labeled fields            |
+
+### Jobs by Source (Sample)
+
+| Source                   | Jobs |
+| ------------------------ | ---- |
+| careers.mantech.com      | 615  |
+| bloomberg.avature.net    | 444  |
+| careers.tesco.com        | 428  |
+| careers.qatarairways.com | 219  |
+| careers.avature.net      | 101  |
+| baufest.avature.net      | 50   |
+
+### Known Limitations
+
+- **Posted dates**: Not extracted from job pages (available via RSS feed endpoint)
+- **Location extraction**: Varies significantly across domains due to different HTML templates
+- **Metadata fields**: Only populated for sites using Avature's standard labeled field structure
+
+## Handled Domains
+
+The following 20 Avature career sites have been discovered and tested:
+
+| Domain                     | Portal Path                   |
+| -------------------------- | ----------------------------- |
+| baufest.avature.net        | /jobs                         |
+| bloomberg.avature.net      | /careers                      |
+| careers.avature.net        | /es_ES/main                   |
+| careers.mantech.com        | /en_US/careers                |
+| careers.qatarairways.com   | /global                       |
+| careers.tesco.com          | /en_GB/careersmarketplace     |
+| careers.tql.com            | /en_US/TQLexternalcareers     |
+| cdcn.avature.net           | /careers                      |
+| deloittecm.avature.net     | /en_US/careers                |
+| forvis.avature.net         | /experiencedcareers           |
+| gpshospitality.avature.net | /careers                      |
+| infor.avature.net          | /en_US/consultingservicesjobs |
+| jobs.justice.gov.uk        | /careers                      |
+| jobs.totalenergies.com     | /en_US/careers                |
+| jobsearch.harman.com       | /en_US/careers                |
+| mercadona.avature.net      | /es_ES/Careers                |
+| nva.avature.net            | /jobs                         |
+| primero.avature.net        | /en_GB/careers                |
+| uclahealth.avature.net     | /careers                      |
+| unifi.avature.net          | /careers                      |
+
+## Rate Limiting
+
+Based on empirical testing, Avature sites implement IP-based rate limiting.
+
+### Findings
+
+| Metric              | Value                               |
+| ------------------- | ----------------------------------- |
+| Rate limit trigger  | ~300+ rapid requests                |
+| Safe sustained rate | ~0.6 req/s (36 req/min)             |
+| Recovery time       | ~180 seconds (3 minutes)            |
+| HTTP status code    | 406 Not Acceptable                  |
+| Scope               | IP-based (not session/cookie based) |
+
+### Test Results
+
+1. **Single worker at natural latency (~0.6 req/s)**: 1500 requests with 0 rate limits
+2. **Rapid parallel requests**: 406 triggered after ~300 requests
+3. **Recovery**: Rate limit resets after ~3 minutes of inactivity
+4. **Session/UA changes**: Do not bypass rate limit (IP-based)
+5. **Browser-based approaches (Playwright)**: Do not bypass rate limits
+
+### Rate Limit Handling
+
+When a 406 response is received, the scraper automatically:
+
+1. Logs the rate limit event
+2. Waits for 180 seconds (cooldown period)
+3. Retries the request
+4. Repeats up to 3 times before aborting
+
+### Throughput Estimates
+
+| Delay          | Rate       | Jobs/hour |
+| -------------- | ---------- | --------- |
+| 1.5s (default) | ~0.5 req/s | ~1,800    |
+| 1.0s           | ~0.7 req/s | ~2,500    |
+| 0.5s           | ~1.0 req/s | ~3,600    |
+
+Note: Actual throughput depends on network latency and server response times.
+
+### Future: Proxy Pool Rotation
+
+To bypass rate limits and significantly speed up scraping, a **proxy pool rotation** strategy is recommended:
+
+- Rotate IPs across requests to avoid per-IP rate limits
+- Enables parallel workers without triggering 406 errors
+- Estimated throughput increase: 10-50x with a pool of 10-50 proxies
 
 ## How It Works
 
@@ -107,37 +228,7 @@ The `--discover-sources` flag enables automated discovery of Avature career site
 3. Fetches each job detail page for full description and metadata
 4. Writes jobs to JSONL output file
 
-## Data Quality & Edge Cases
-
-**Posted Date Solution**:
-While not all individual job pages include posting dates, Avature provides an **RSS feed API endpoint** that includes `pubDate` for each job:
-
-Example: `https://uclahealth.avature.net/careers/SearchJobs/feed/?jobRecordsPerPage=100`
-
-RSS Feed structure:
-
-```xml
-<item>
-    <title><![CDATA[Attending Physician- Staff Anesthesiologist, Westwood]]></title>
-    <description><![CDATA[ - 26192]]></description>
-    <guid isPermaLink="true">https://uclahealth.avature.net/careers/JobDetail/...</guid>
-    <link>https://uclahealth.avature.net/careers/JobDetail/...</link>
-    <pubDate>Tue, 25 Jul 2023 00:00:00 +0000</pubDate>
-</item>
-```
-
-**Handled Edge Cases**:
-
-- ✓ Retry logic for failed requests (up to 3 retries with exponential backoff)
-- ✓ Error page detection and filtering (skips jobs with "Error" in title and empty description)
-- ✓ Site-specific HTML variations (Bloomberg labeled fields vs UCLA "Work Location:" format)
-- ✓ Proper HTML entity decoding in job descriptions
-- ✓ Timeout handling for slow-responding sites
-- ✓ Thread-safe parallel scraping with proper session management
-- ✓ Graceful handling of malformed HTML
-- ✓ URL deduplication from sitemaps
-
-**Parsing Strategy**:
+## Parsing Strategy
 
 The scraper uses a hybrid parsing approach to handle inconsistencies across Avature domains:
 
@@ -145,41 +236,32 @@ The scraper uses a hybrid parsing approach to handle inconsistencies across Avat
 - **Site-specific fallbacks**: Custom extraction logic for domains with unique HTML structures
   - Example: UCLA Health uses `<strong>Work Location:</strong>` instead of labeled fields
 
+**Posted Date Solution**:
+While not all individual job pages include posting dates, Avature provides an **RSS feed API endpoint** that includes `pubDate` for each job:
+
+Example: `https://uclahealth.avature.net/careers/SearchJobs/feed/?jobRecordsPerPage=100`
+
 ## Future Enhancements
 
 ### Two-Stage Pipeline for Scale
 
-For larger-scale deployments, a two-stage architecture would improve reliability and maintainability:
+For larger-scale deployments, a two-stage architecture would improve reliability:
 
 **Stage 1: Download & Store Raw Data**
+
 - Fetch and store raw HTML pages with minimal processing
-- Capture basic metadata extractable from URLs (job ID, source domain)
-- Store lightweight index data (job title from `<title>` tag, URL)
 - Upload to cloud storage (S3, GCS) with structured paths: `/{domain}/{job_id}/raw.html`
 - Benefits: Decouples fetching from parsing, enables re-processing without re-fetching
 
 **Stage 2: Parse & Transform**
+
 - Process raw HTML through a global parser for common Avature patterns
 - On parse failure, route to domain-specific parsers
-- Domain parsers registered in a simple registry pattern:
-  ```python
-  DOMAIN_PARSERS = {
-      "uclahealth.avature.net": UCLAHealthParser,
-      "bloomberg.avature.net": BloombergParser,
-  }
-  ```
-- Failed parses logged with domain + job ID for easy debugging
-- New domain parsers added incrementally as edge cases are discovered
-
-**Benefits**:
-- Raw data preserved for re-processing when parsers improve
-- Easy to add domain-specific logic without touching core scraping
-- Failed parses don't block the pipeline, just queue for review
-- Enables parallel processing of parse stage across workers
+- Failed parses logged for incremental parser improvements
 
 ### Other Enhancements
 
 - Parse RSS feed to enrich job data with posting dates
 - Add structured data extraction from JSON-LD when available
 - Implement incremental scraping (only fetch new/updated jobs)
-- Add webhook notifications for new job discoveries
+- Implement proxy pool rotation for rate limit bypass

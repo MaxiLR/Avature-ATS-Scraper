@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from .http import fetch
 from .job_parser import JobParser
 from .models import Job
 from .sitemap_parser import SitemapParser
@@ -19,7 +20,7 @@ class AvatureScraper:
         "Accept-Language": "en-US,en;q=0.9",
     }
 
-    def __init__(self, delay: float = 0.5, max_retries: int = 3, workers: int = 1):
+    def __init__(self, delay: float = 1.5, max_retries: int = 3, workers: int = 1):
         self.delay = delay
         self.max_retries = max_retries
         self.workers = workers
@@ -81,15 +82,19 @@ class AvatureScraper:
         total = len(job_urls)
         print(f"  Found {total} jobs in sitemap")
 
+        failed = 0
         if self.workers == 1:
             for i, job_url in enumerate(job_urls, 1):
-                job = self._fetch_job_details(job_url, source_site)
+                job, error = self._fetch_job_details(job_url, source_site)
                 if job:
-                    print(f"  [{i}/{total}] {job.title[:50]}...")
+                    self._log_job(i, total, job.title)
                     with lock:
                         file.write(json.dumps(job.to_dict(), ensure_ascii=False) + "\n")
                         file.flush()
                     yield job
+                else:
+                    self._log_job(i, total, None, error)
+                    failed += 1
                 time.sleep(self.delay)
         else:
             completed = 0
@@ -101,29 +106,56 @@ class AvatureScraper:
 
                 for future in as_completed(futures):
                     completed += 1
-                    job = future.result()
+                    job, error = future.result()
                     if job:
-                        print(f"  [{completed}/{total}] {job.title[:50]}...")
+                        self._log_job(completed, total, job.title)
                         with lock:
                             file.write(
                                 json.dumps(job.to_dict(), ensure_ascii=False) + "\n"
                             )
                             file.flush()
                         yield job
+                    else:
+                        self._log_job(completed, total, None, error)
+                        failed += 1
 
-    def _fetch_job_details(self, url: str, source_site: str) -> Job | None:
-        """Fetch and parse a job detail page."""
+        if failed > 0:
+            print(f"  Skipped {failed} failed requests")
+
+    def _log_job(self, i: int, total: int, title: str | None, error: str | None = None):
+        """Log job fetch result in compact format."""
+        idx = f"[{i}/{total}]"
+        if title:
+            print(f"  {idx} {title[:60]}")
+        else:
+            print(f"  {idx} x {error}")
+
+    def _fetch_job_details(
+        self, url: str, source_site: str
+    ) -> tuple[Job | None, str | None]:
+        """Fetch and parse a job detail page. Returns (job, error)."""
         session = self._get_session()
 
         for attempt in range(self.max_retries):
             try:
-                response = session.get(url, timeout=30)
-                response.raise_for_status()
-                return self.job_parser.parse(response.text, url, None, source_site)
-            except requests.RequestException as e:
+                response = fetch(session, url, follow_redirects=False)
+                job = self.job_parser.parse(response.text, url, None, source_site)
+                return (job, None) if job else (None, "parse error")
+            except requests.exceptions.HTTPError as e:
                 if attempt < self.max_retries - 1:
                     time.sleep(2**attempt)
                 else:
-                    print(f"  Failed to fetch {url}: {e}")
-                    return None
-        return None
+                    return None, str(e.response.status_code)
+            except requests.exceptions.Timeout:
+                if attempt < self.max_retries - 1:
+                    time.sleep(2**attempt)
+                else:
+                    return None, "timeout"
+            except requests.RequestException:
+                if attempt < self.max_retries - 1:
+                    time.sleep(2**attempt)
+                else:
+                    return None, "connection error"
+            except RuntimeError as e:
+                return None, str(e)
+        return None, "max retries"

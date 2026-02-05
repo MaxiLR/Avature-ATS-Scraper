@@ -1,23 +1,21 @@
-# Avature-hosted career site URLs
-
-https://bloomberg.avature.net/careers
-https://uclahealth.avature.net/careers
-
-# Additional sources discovered via Google search (site:*.avature.net inurl:SearchJobs)
-https://careers.avature.net/
-https://ocasata.avature.net/empleos
-https://infor.avature.net/consultingservicesjobs
+# Auto-discovered sources
 https://baufest.avature.net/jobs
-https://qatarairways.avature.net/global
-https://totalenergies.avature.net/careers
-https://stagingkoch.avature.net/careers
-https://deloittecm.avature.net/careers
-https://harmanglobal.avature.net/careers
-https://fortress.avature.net/careers
-https://mercadona.avature.net/Careers
-https://maximus.avature.net/careers
-https://gpshospitality.avature.net/careers
-https://xerox.avature.net/careers
-https://mantech.avature.net/careers
+https://bloomberg.avature.net/careers
+https://careers.avature.net/es_ES/main
+https://careers.mantech.com/en_US/careers
+https://careers.qatarairways.com/global
+https://careers.tesco.com/en_GB/careersmarketplace
+https://careers.tql.com/en_US/TQLexternalcareers
 https://cdcn.avature.net/careers
+https://deloittecm.avature.net/en_US/careers
+https://forvis.avature.net/experiencedcareers
+https://gpshospitality.avature.net/careers
+https://infor.avature.net/en_US/consultingservicesjobs
+https://jobs.justice.gov.uk/careers
+https://jobs.totalenergies.com/en_US/careers
+https://jobsearch.harman.com/en_US/careers
+https://mercadona.avature.net/es_ES/Careers
+https://nva.avature.net/jobs
+https://primero.avature.net/en_GB/careers
+https://uclahealth.avature.net/careers
 https://unifi.avature.net/careers

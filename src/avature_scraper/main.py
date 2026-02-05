@@ -36,8 +36,8 @@ def main():
     parser.add_argument(
         "--delay",
         type=float,
-        default=0.5,
-        help="Delay between requests in seconds (default: 0.5)",
+        default=1.5,
+        help="Delay between requests in seconds (default: 1.5)",
     )
     parser.add_argument(
         "--workers",
