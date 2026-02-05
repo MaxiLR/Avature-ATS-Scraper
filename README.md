@@ -4,6 +4,32 @@ Scraper for extracting job postings from Avature-hosted career sites.
 
 **Time Investment**: ~12 hours
 
+| Input                          | Output              | Performance                                |
+| ------------------------------ | ------------------- | ------------------------------------------ |
+| `input/sites.txt` (20 domains) | `output/jobs.jsonl` | **10,623 jobs** in 1h 15m (`--workers 15`) |
+
+## Project Structure
+
+```
+src/avature_scraper/
+├── __init__.py
+├── __main__.py           # Entry point
+├── main.py               # CLI argument parsing
+├── scraper.py            # Main scraper orchestration
+├── http.py               # HTTP client with rate limiting
+├── sitemap_parser.py     # Sitemap XML parsing
+├── models.py             # Job data model
+├── discovery.py          # Automated source discovery
+└── parsers/              # Domain-specific parsing layer
+    ├── __init__.py
+    ├── base.py           # Abstract base parser
+    ├── standard.py       # Standard Avature parser (14 sites)
+    ├── baufest.py        # Baufest custom template parser
+    ├── gps.py            # GPS Hospitality parser
+    ├── nva.py            # NVA Jobs parser
+    └── registry.py       # Parser selection by domain
+```
+
 ## Prerequisites
 
 - **Python 3.11+**
@@ -32,6 +58,8 @@ poetry run python -m avature_scraper --discover-sources
 ```
 
 This uses Playwright to search Google for `site:*.avature.net inurl:SearchJobs`, extracts portal URLs, validates them against their sitemaps, and optionally appends them to your `input/sites.txt`.
+
+> **Note**: All 20 domains in `input/sites.txt` were discovered using this tool. The discovery feature is experimental and may fail on some runs due to CAPTCHAs or unhandled pop-ups. Re-running usually resolves the issue.
 
 Options:
 
@@ -86,71 +114,65 @@ Jobs are saved as JSON Lines (`.jsonl`), one job per line:
 }
 ```
 
-## Data Quality Summary
+### Pre-scraped Data
 
-> **Note**: Due to time constraints, not all edge cases are handled. The focus was on identifying global, repeatable patterns across Avature ATS sources and designing a dynamic discovery mechanism for new sources.
+The repository includes pre-scraped job data in `output/segments/` (split into <100MB files for GitHub):
+
+```bash
+# Merge segments into a single file
+python scripts/split_output.py merge -i output/segments -o output/jobs.jsonl
+
+# Split a large output file into segments
+python scripts/split_output.py split -i output/jobs.jsonl -o output/segments
+```
+
+## Data Quality Summary
 
 ### Current Dataset Statistics
 
-| Metric                 | Value       |
-| ---------------------- | ----------- |
-| Total jobs scraped     | 1,857       |
-| Unique apply URLs      | 100%        |
-| Avg description length | 8,308 chars |
+| Metric                 | Value        |
+| ---------------------- | ------------ |
+| Total jobs scraped     | 10,623       |
+| Unique apply URLs      | 100%         |
+| Avg description length | 14,058 chars |
 
 ### Field Completeness
 
-| Field       | Coverage | Notes                                        |
-| ----------- | -------- | -------------------------------------------- |
-| title       | 93.8%    | Missing on some error/redirect pages         |
-| description | 68.1%    | Varies by site template                      |
-| location    | 34.8%    | Different HTML structures per domain         |
-| posted_at   | 0%       | Available via RSS feed (not yet implemented) |
-| metadata    | 34.9%    | Only on sites with labeled fields            |
-
-### Jobs by Source (Sample)
-
-| Source                   | Jobs |
-| ------------------------ | ---- |
-| careers.mantech.com      | 615  |
-| bloomberg.avature.net    | 444  |
-| careers.tesco.com        | 428  |
-| careers.qatarairways.com | 219  |
-| careers.avature.net      | 101  |
-| baufest.avature.net      | 50   |
-
-### Known Limitations
-
-- **Posted dates**: Not extracted from job pages (available via RSS feed endpoint)
-- **Location extraction**: Varies significantly across domains due to different HTML templates
-- **Metadata fields**: Only populated for sites using Avature's standard labeled field structure
+| Field       | Coverage | Notes                                      |
+| ----------- | -------- | ------------------------------------------ |
+| title       | 98.5%    | Missing on some error/redirect pages       |
+| description | 98.5%    | Rich content with section headers          |
+| location    | 83.2%    | Constructed from city/state/country fields |
+| posted_at   | 23.5%    | Extracted from date fields where available |
+| metadata    | 58.4%    | Business area, ref ID, experience, etc.    |
 
 ## Handled Domains
 
 The following 20 Avature career sites have been discovered and tested:
 
-| Domain                     | Portal Path                   |
-| -------------------------- | ----------------------------- |
-| baufest.avature.net        | /jobs                         |
-| bloomberg.avature.net      | /careers                      |
-| careers.avature.net        | /es_ES/main                   |
-| careers.mantech.com        | /en_US/careers                |
-| careers.qatarairways.com   | /global                       |
-| careers.tesco.com          | /en_GB/careersmarketplace     |
-| careers.tql.com            | /en_US/TQLexternalcareers     |
-| cdcn.avature.net           | /careers                      |
-| deloittecm.avature.net     | /en_US/careers                |
-| forvis.avature.net         | /experiencedcareers           |
-| gpshospitality.avature.net | /careers                      |
-| infor.avature.net          | /en_US/consultingservicesjobs |
-| jobs.justice.gov.uk        | /careers                      |
-| jobs.totalenergies.com     | /en_US/careers                |
-| jobsearch.harman.com       | /en_US/careers                |
-| mercadona.avature.net      | /es_ES/Careers                |
-| nva.avature.net            | /jobs                         |
-| primero.avature.net        | /en_GB/careers                |
-| uclahealth.avature.net     | /careers                      |
-| unifi.avature.net          | /careers                      |
+| Domain                     | Portal Path                   | Parser   | Status |
+| -------------------------- | ----------------------------- | -------- | ------ |
+| baufest.avature.net        | /jobs                         | Custom   | ✓      |
+| bloomberg.avature.net      | /careers                      | Standard | ✓      |
+| careers.avature.net        | /es_ES/main                   | Standard | ⚠️     |
+| careers.mantech.com        | /en_US/careers                | Standard | ✓      |
+| careers.qatarairways.com   | /global                       | Standard | ✓      |
+| careers.tesco.com          | /en_GB/careersmarketplace     | Standard | ✓      |
+| careers.tql.com            | /en_US/TQLexternalcareers     | Standard | ✓      |
+| cdcn.avature.net           | /careers                      | Standard | ✓      |
+| deloittecm.avature.net     | /en_US/careers                | Standard | ✓      |
+| forvis.avature.net         | /experiencedcareers           | Standard | ✓      |
+| gpshospitality.avature.net | /careers                      | Custom   | ✓      |
+| infor.avature.net          | /en_US/consultingservicesjobs | Standard | ⚠️     |
+| jobs.justice.gov.uk        | /careers                      | Standard | ✓      |
+| jobs.totalenergies.com     | /en_US/careers                | Standard | ✓      |
+| jobsearch.harman.com       | /en_US/careers                | Standard | ✓      |
+| nva.avature.net            | /jobs                         | Custom   | ✓      |
+| primero.avature.net        | /en_GB/careers                | Standard | ✓      |
+| uclahealth.avature.net     | /careers                      | Standard | ✓      |
+| unifi.avature.net          | /careers                      | Standard | ✓      |
+
+**Legend**: ✓ = Fully working, ⚠️ = Known issues (site-specific, not parser issues)
 
 ## Rate Limiting
 
@@ -221,22 +243,92 @@ The `--discover-sources` flag enables automated discovery of Avature career site
    - Checks sitemap for `/JobDetail/` links to confirm active job listings
    - Reports job count per validated source
 
-### Scraping
+### Scraping Pipeline
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Input     │───▶│  Sitemap    │───▶│   HTTP      │───▶│   Parser    │
+│  sites.txt  │    │   Parser    │    │   Fetch     │    │  Registry   │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+                         │                   │                   │
+                         ▼                   ▼                   ▼
+                   Get job URLs        Fetch HTML         Select parser
+                   from sitemap        for each job       by domain
+                                                                │
+                                                                ▼
+                                                          ┌─────────────┐
+                                                          │   Output    │
+                                                          │  jobs.jsonl │
+                                                          └─────────────┘
+```
 
 1. Reads Avature site URLs from input file
 2. Fetches `/sitemap.xml` from each site (single request to get all job URLs)
-3. Fetches each job detail page for full description and metadata
-4. Writes jobs to JSONL output file
+3. Fetches each job detail page HTML
+4. **Parser Registry** selects appropriate parser based on domain
+5. Parser extracts title, description, location, and metadata
+6. Writes jobs to JSONL output file
 
-## Parsing Strategy
+## Parsing Architecture
 
-The scraper uses a hybrid parsing approach to handle inconsistencies across Avature domains:
+The scraper uses a **layered parsing architecture** with a parser registry that selects domain-specific parsers based on the site's HTML structure.
 
-- **Global parser**: Handles common Avature HTML patterns (title, description, labeled metadata fields)
-- **Site-specific fallbacks**: Custom extraction logic for domains with unique HTML structures
-  - Example: UCLA Health uses `<strong>Work Location:</strong>` instead of labeled fields
+### Parser Types
 
-**Posted Date Solution**:
+| Parser                  | Domains                                    | Structure                                                            |
+| ----------------------- | ------------------------------------------ | -------------------------------------------------------------------- |
+| `StandardAvatureParser` | 14 sites (Bloomberg, Tesco, ManTech, etc.) | Uses `.article__content__view__field` classes with label/value pairs |
+| `BaufestParser`         | baufest.avature.net                        | Custom template with `.jobDescription`, `.jobInfoLocation` classes   |
+| `GPSHospitalityParser`  | gpshospitality.avature.net                 | Custom TPT template with `og:title` and `.article__content`          |
+| `NVAParser`             | nva.avature.net                            | Custom template with `.detailDescription`, `.detailData` classes     |
+
+### Field Extraction Analysis
+
+Based on analyzing 17 domains, field labels vary significantly across sites:
+
+| Field Type    | Label Variations                                                                              |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| Location      | `Location`, `Location:`, `Workplace location`, `Work Location:`, `City` + `State` + `Country` |
+| Job Reference | `Ref #`, `Ref#`, `Job #`, `Job ID`, `Job ID:`, `Requisition #`                                |
+| Business Area | `Business Area`, `Business Function`, `Job Family`, `Department`, `Entity`, `Career Field`    |
+| Experience    | `Experience Level`, `Experience`, `Seniority`, `Career Level`, `Position Level`               |
+| Contract Type | `Type of contract`, `Worker Type Reference`, `Employment Type`, `Post Type`                   |
+| Posted Date   | `Date`, `Posted Date`, `Posting Date`, `Date Published`                                       |
+| Other         | `Security Clearance Required`, `Remote Type`, `Closing Date`, `Duration`                      |
+
+### Adding New Domain Parsers
+
+To add a custom parser for a domain with unique HTML structure:
+
+```python
+# src/avature_scraper/parsers/my_custom.py
+from .base import BaseJobParser
+
+class MyCustomParser(BaseJobParser):
+    def _extract_title(self, soup):
+        # Custom title extraction logic
+        pass
+
+    def _extract_description(self, soup):
+        pass
+
+    def _extract_metadata(self, soup):
+        return {}
+
+    def _extract_location(self, soup, metadata):
+        return None
+
+# Register in src/avature_scraper/parsers/registry.py
+DOMAIN_PARSERS = {
+    "baufest.avature.net": BaufestParser,
+    "gpshospitality.avature.net": GPSHospitalityParser,
+    "nva.avature.net": NVAParser,
+    "my-custom-site.com": MyCustomParser,  # Add here
+}
+```
+
+### Posted Date Solution
+
 While not all individual job pages include posting dates, Avature provides an **RSS feed API endpoint** that includes `pubDate` for each job:
 
 Example: `https://uclahealth.avature.net/careers/SearchJobs/feed/?jobRecordsPerPage=100`

@@ -8,8 +8,8 @@ from urllib.parse import urlparse
 import requests
 
 from .http import fetch
-from .job_parser import JobParser
 from .models import Job
+from .parsers import get_parser
 from .sitemap_parser import SitemapParser
 
 
@@ -24,7 +24,6 @@ class AvatureScraper:
         self.delay = delay
         self.max_retries = max_retries
         self.workers = workers
-        self.job_parser = JobParser()
         self._local = threading.local()
 
     def _get_session(self) -> requests.Session:
@@ -139,7 +138,8 @@ class AvatureScraper:
         for attempt in range(self.max_retries):
             try:
                 response = fetch(session, url, follow_redirects=False)
-                job = self.job_parser.parse(response.text, url, None, source_site)
+                parser = get_parser(source_site)
+                job = parser.parse(response.text, url, None, source_site)
                 return (job, None) if job else (None, "parse error")
             except requests.exceptions.HTTPError as e:
                 if attempt < self.max_retries - 1:
